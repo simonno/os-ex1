@@ -81,7 +81,10 @@ int main(int argc, char* argv[]) {
         perror(OPEN_RESULTS_FILE_ERROR);
         exit(FAILURE);
     }
-    dup2(fdResults, 1);
+    if(dup2(fdResults,1) < 0) {
+        perror(DUP2_ERROR);
+        exit(FAILURE);
+    }
 
 
     struct dirent *pDirent;
