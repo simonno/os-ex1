@@ -36,8 +36,6 @@ int isDir(char* name, char* path);
 
 int isCFile(char* name);
 
-void subDir(char *dirLocation);
-
 char *appendPath(char name[256], char location[MAX_PATH_LENGTH]);
 
 StudentGrade searchForCFile(char *studentName, char *path, char *location, char *outputLocation, int depth);
@@ -48,7 +46,7 @@ StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocati
 
 int compareFile(char *fileLocation1, char *fileLocation2);
 
-void checkDepthFile(StudentGrade *pStudentGrade, int depth);
+void updateGrade(StudentGrade *pStudentGrade, int depth);
 
 int main(int argc, char* argv[]) {
     int fdConfig;
@@ -225,15 +223,29 @@ StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocati
             studentGrade.name = studentName;
             switch(compareFile(outputName, outputLocation)){
                 case 1:
-                    strcpy(studentGrade.gradeDescription , "GREAT_JOB");
+                    if  (depth == 0) {
+                        strcpy(studentGrade.gradeDescription, "GREAT_JOB");
+                    } else {
+                        strcpy(studentGrade.gradeDescription, "WRONG_DIRECTORY");
+                    }
+                    updateGrade(&studentGrade, depth);
                     studentGrade.grade = 100;
                     break;
                 case 2:
-                    strcpy(studentGrade.gradeDescription , "SIMILLAR_OUTPUT");
+                    if  (depth == 0) {
+                        strcpy(studentGrade.gradeDescription, "SIMILLAR_OUTPUT");
+                    } else {
+                        strcpy(studentGrade.gradeDescription, "SIMILLAR_OUTPUT,WRONG_DIRECTORY");
+                    }
+                    updateGrade(&studentGrade, depth);
                     studentGrade.grade = 70;
                     break;
                 case 3:
-                    strcpy(studentGrade.gradeDescription , "BAD_OUTPUT");
+                    if  (depth == 0) {
+                        strcpy(studentGrade.gradeDescription, "BAD_OUTPUT");
+                    } else {
+                        strcpy(studentGrade.gradeDescription, "BAD_OUTPUT,WRONG_DIRECTORY");
+                    }
                     studentGrade.grade = 0;
                     break;
                 default: //shouldn't get here.
@@ -241,17 +253,14 @@ StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocati
             }
             unlink(fileName);
             unlink(outputName);
-            checkDepthFile(&studentGrade, depth);
             return studentGrade;
         }
     }
 }
 
-void checkDepthFile(StudentGrade *pStudentGrade, int depth) {
+void updateGrade(StudentGrade *pStudentGrade, int depth) {
     if (depth <= 0)
         return;
-
-    strcat(pStudentGrade->gradeDescription, ",WRONG_DIRECTORY");
 
     int grade = pStudentGrade->grade - depth * 10;
     if (grade <= 0) {
@@ -313,61 +322,3 @@ int isDir(char* name, char* path) {
         return 1;
     return 0;
 }
-
-void subDir(char* dirLocation) {
-//    DIR* pDir = opendir(dirLocation);
-//    if (pDir == NULL) {
-//        perror("open dir error");
-//        exit(-1);
-//    }
-//
-//
-//    struct dirent *pDirent;
-//    struct stat stat_p;
-//    pid_t	pid;
-//
-//    // looping through the directory, printing the directory entry name
-//    while ( (pDirent = readdir(pDir) ) != NULL ) {
-//        if (strcmp(pDirent->d_name, ".") == 0 || strcmp(pDirent->d_name, "..") == 0)
-//            continue; /* skip self and parent */
-//
-//        char * subDirPath ;
-//        subDirPath = (char*) malloc(strlen(dirLocation)+strlen(pDirent->d_name)+2);
-//        subDirPath[0] = '\0';   // ensures the memory is an empty string
-//        strcat(subDirPath, dirLocation);
-//        strcat(subDirPath, "/");
-//        strcat(subDirPath, pDirent->d_name);
-//        stat(subDirPath, &stat_p);
-//
-//
-//        if (S_ISDIR(stat_p.st_mode)) {
-//            subDir(subDirPath);
-//        } else if (S_ISREG(stat_p.st_mode)) {
-//            if ((pid = fork()) < 0) {
-//                perror("fork error");
-//            } else {
-//                if (pid == 0) { /* first child */
-//                    char *args[] = {"gcc", subDirPath, NULL };
-//                    execvp("gcc", args);
-//                }
-//                int status;
-//                if (waitpid(pid, &status, 0) != pid)  /* wait for first child */
-//                    perror("waitpid error");
-//                if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-//                    printf("%s - COMPILATION_ERROR\n", subDirPath);
-//                    return;
-//                }
-//                if ((pid = fork()) < 0) {
-//                    perror("fork error");
-//                }
-//                if (pid == 0) {    /* second  child */
-//                    char *args[] = {"a.out", NULL};
-//                    execvp("a.out", args);
-//                }
-//
-//            }
-//        }
-//
-//    }
-}
-

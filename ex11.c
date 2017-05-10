@@ -5,6 +5,9 @@
 
 #define SIZE 20
 
+int isSimilar(char first, char second);
+
+int needToIgnore(char c);
 
 int theRemained(char *buffer, int fd, int i, int read);
 
@@ -34,14 +37,14 @@ int main(int argc, char* argv[]) {
         if (buffer1[i] == buffer2[j]){
             i++;
             j++;
-        } else if (buffer1[i] + 32 == buffer2[j] || buffer1[i] == buffer2[j] + 32) {
+        } else if (isSimilar(buffer1[i], buffer2[j])) {
             i++;
             j++;
             returnValue = 2;
-        } else if (buffer1[i] == ' ' || buffer1[i] == '\n') {
+        } else if (needToIgnore(buffer1[i])) {
             i++;
             returnValue = 2;
-        } else if (buffer2[j] == ' ' || buffer2[j] == '\n') {
+        } else if (needToIgnore(buffer2[j])) {
             j++;
             returnValue = 2;
         } else {
@@ -73,60 +76,42 @@ int main(int argc, char* argv[]) {
 }
 
 int theRemained(char *buffer, int fd, int i, int readBytes) {
-    int returnValue = 2;
-    while(readBytes > 0 && buffer[i] != EOF) {
-        if (buffer[i] != ' ' && buffer[i] != '\n') {
-            returnValue = 3;
-            break;
+    do {
+        while (i < readBytes) {
+            if (!needToIgnore(buffer[i])) {
+                return  3;
+            }
+            i++;
         }
-        if (i == readBytes) {
-            readBytes = (int) read(fd, buffer, SIZE);
-            i = 0;
-            continue;
-        }
-        i++;
-    }
-    return returnValue;
+        readBytes = (int) read(fd, buffer, SIZE);
+        i = 0;
+    } while (readBytes > 0);
+    return 2;
 }
 
 
-
-//        switch (compareBuffers(buffer1, buffer2, read1, read2)) {
-//            case 1:
-//                continue;
-//            case 2:
-//                returnValue = 2;
-//                continue;
-//            case 3:
-//                close(fd1);		/* free allocated structures */
-//                close(fd2);		/* free allocated structures */
-//                return 3;
-//            default:
-//                break;
-//        }
-
-//int compareBuffers(char buffer1[SIZE], char buffer2[SIZE], int read1, int read2) {
-//    int returnValue = 1;
-//    int i = 0, j = 0;
-//    while (i < read1 && j < read2) {
-//        if (buffer1[i] == buffer2[j]){
-//            i++;
-//            j++;
-//            continue;
-//        }
-//        if (buffer1[i] + 32 == buffer2[j] || buffer1[i] == buffer2[j] + 32) {
-//            i++;
-//            j++;
-//            returnValue = 2;
-//            continue;
-//        }
-//        if (buffer1[i] == ' ') {
-//            i++;
-//        }
-//        if (buffer2[j] == ' ') {
-//            j++;
-//        }
-//        return 3;
-//    }
-//    return returnValue;
-//}
+/*******************************************************************************
+* function name : isSimilar                                                    *
+* input : two chars.                                                           *
+* output : 1 if true 0 if false.                                               *
+* explanation : check if the two chars are similars (not equal).               *
+*******************************************************************************/
+int isSimilar(char first, char second)
+{
+    if ((((first >= 92) && first <= 122) && (first == second + 32)) ||
+        ((second >= 92) && (second <= 122) && (second == first + 32)))
+        return 1;
+    return 0;
+}
+/*******************************************************************************
+* function name : needToIgnore                                                 *
+* input : char.                                                                *
+* output : 1 if true 0 if false.                                               *
+* explanation : check if need to ignore the char (equal to new line or space). *
+*******************************************************************************/
+int needToIgnore(char c)
+{
+    if ((c == ' ') || (c == '\n') || (c == '\r') || (c == '\t'))
+        return 1;
+    return 0;
+}
