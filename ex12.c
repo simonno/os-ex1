@@ -27,7 +27,7 @@
 
 typedef struct StudentGrade {
     char*  name;
-    char*  gradeDescription;
+    char  gradeDescription[MAX_PATH_LENGTH];
     int   grade;
 } StudentGrade;
 
@@ -40,13 +40,15 @@ void subDir(char *dirLocation);
 
 char *appendPath(char name[256], char location[MAX_PATH_LENGTH]);
 
-StudentGrade searchForCFile(char *studentName, char *path, char *location, char *outputLocation);
+StudentGrade searchForCFile(char *studentName, char *path, char *location, char *outputLocation, int depth);
 
-StudentGrade compileCFile(char *studentName, char *path, char *location, char *outputLocation);
+StudentGrade compileCFile(char *studentName, char *path, char *location, char *outputLocation, int depth);
 
-StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocation, char *fileName);
+StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocation, char *fileName, int depth);
 
 int compareFile(char *fileLocation1, char *fileLocation2);
+
+void checkDepthFile(StudentGrade *pStudentGrade, int depth);
 
 int main(int argc, char* argv[]) {
     int fdConfig;
@@ -90,18 +92,20 @@ int main(int argc, char* argv[]) {
     struct dirent *pDirent;
 
     while ( (pDirent = readdir(pDir) ) != NULL ) {
-        if (isDir(pDirent->d_name, pDirent->d_name)) { // case this is a directory of a student.
-            char * subDirPath = appendPath(pDirent->d_name, dirLocation);
-            StudentGrade studentGrade = searchForCFile(pDirent->d_name, subDirPath,inputLocation, outputLocation);
+        char * subDirPath = appendPath(pDirent->d_name, dirLocation);
+        if (isDir(pDirent->d_name, subDirPath)) { // case this is a directory of a student.
+            StudentGrade studentGrade = searchForCFile(pDirent->d_name, subDirPath,inputLocation, outputLocation, 0);
             printf("%s,%d,%s\n", studentGrade.name, studentGrade.grade, studentGrade.gradeDescription);
-            free(subDirPath);
         }
+        free(subDirPath);
     }
 }
 
-StudentGrade searchForCFile(char *studentName, char *dirLocation, char *inputLocation, char *outputLocation) {
+StudentGrade searchForCFile(char *studentName, char *dirLocation, char *inputLocation, char *outputLocation, int depth) {
     struct dirent *pDirent;
-    StudentGrade studentGrade = {studentName, "FILE_C_NO", 0};
+    char * singleDirPath = NULL;
+    StudentGrade studentGrade = {studentName, "NO_C_FILE", 0};
+    int dirCounter = 0;
 
     // open directory.
     DIR* pDir = opendir(dirLocation);
@@ -113,20 +117,37 @@ StudentGrade searchForCFile(char *studentName, char *dirLocation, char *inputLoc
     while ( (pDirent = readdir(pDir) ) != NULL ) {
         char * itemPath = appendPath(pDirent->d_name, dirLocation);
         if (isDir(pDirent->d_name, itemPath)) { // case this is a directory of a student.
-            studentGrade = searchForCFile(studentName, itemPath,inputLocation, outputLocation);
-            free(itemPath);
-            return studentGrade;
-
+            dirCounter++;
+            if (dirCounter == 1) {
+                singleDirPath = itemPath;
+                continue;
+            }
         } else if (isCFile(itemPath)){
-            studentGrade = compileCFile(studentName, itemPath, inputLocation, outputLocation);
+            studentGrade = compileCFile(studentName, itemPath, inputLocation, outputLocation, depth);
             free(itemPath);
             return studentGrade;
         }
+        free(itemPath);
     }
+
+    // case there are MULTIPLE_DIRECTORIES and there isn't a C file.
+    if (dirCounter > 1) {
+        strcpy(studentGrade.gradeDescription, "MULTIPLE_DIRECTORIES");
+        return studentGrade;
+    }
+
+    // case there is a single dir an no c file - keep looking for the C file;
+    if (dirCounter == 1) {
+        studentGrade = searchForCFile(studentName, singleDirPath, inputLocation, outputLocation, ++depth);
+        free(singleDirPath);
+        return studentGrade;
+    }
+
+    // case there isn't a C file - return "NO_C_FILE"
     return studentGrade;
 }
 
-StudentGrade compileCFile(char *studentName, char *path, char *inputLocation, char *outputLocation) {
+StudentGrade compileCFile(char *studentName, char *path, char *inputLocation, char *outputLocation, int depth) {
     int status;
     pid_t pid;
 
@@ -148,16 +169,16 @@ StudentGrade compileCFile(char *studentName, char *path, char *inputLocation, ch
     if (WIFEXITED(status) ) {
         if (WEXITSTATUS(status) == 1) {
             // COMPILATION_ERROR
-            StudentGrade studentGrade = {studentName, "ERROR_COMPILATION", 0};
+            StudentGrade studentGrade = {studentName, "COMPILATION_ERROR", 0};
             return studentGrade;
         }
 
-        return runCFile(studentName, inputLocation, outputLocation, compiledFileName);
+        return runCFile(studentName, inputLocation, outputLocation, compiledFileName, depth);
     }
 
 }
 
-StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocation, char *fileName) {
+StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocation, char *fileName, int depth) {
     int status;
     pid_t pid;
 
@@ -204,22 +225,39 @@ StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocati
             studentGrade.name = studentName;
             switch(compareFile(outputName, outputLocation)){
                 case 1:
-                    studentGrade.gradeDescription = "JOB_GREAT";
+                    strcpy(studentGrade.gradeDescription , "GREAT_JOB");
                     studentGrade.grade = 100;
                     break;
                 case 2:
-                    studentGrade.gradeDescription = "OUTPUT_SIMILLAR";
+                    strcpy(studentGrade.gradeDescription , "SIMILLAR_OUTPUT");
                     studentGrade.grade = 70;
                     break;
                 case 3:
-                    studentGrade.gradeDescription = "OUTPUT_BAD";
+                    strcpy(studentGrade.gradeDescription , "BAD_OUTPUT");
                     studentGrade.grade = 0;
                     break;
-                default: //shouldn't get hear.
+                default: //shouldn't get here.
                     exit(FAILURE);
             }
+            unlink(fileName);
+            unlink(outputName);
+            checkDepthFile(&studentGrade, depth);
             return studentGrade;
         }
+    }
+}
+
+void checkDepthFile(StudentGrade *pStudentGrade, int depth) {
+    if (depth <= 0)
+        return;
+
+    strcat(pStudentGrade->gradeDescription, ",WRONG_DIRECTORY");
+
+    int grade = pStudentGrade->grade - depth * 10;
+    if (grade <= 0) {
+        pStudentGrade->grade = 0;
+    } else {
+        pStudentGrade->grade = grade;
     }
 }
 
