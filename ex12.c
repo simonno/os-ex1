@@ -272,44 +272,47 @@ StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocati
         if (state < 0) {
             perror(WAITPID_ERROR);
             exit(FAILURE);
-        } else if (state == 0) { // the program wasn't done after 5 sec - timeout.
-            StudentGrade studentGrade = {studentName, "TIMEOUT", 0};
-            return studentGrade;
         } else {
-            // the program was done properly - calculate the grade.
             StudentGrade studentGrade;
             studentGrade.name = studentName;
-            /* compare the output files and return the grade of
-             * the student according to the comparision. */
-            switch(compareFile(myOutputPath, outputLocation)){
-                case 1:
-                    if  (depth == 0) {
-                        strcpy(studentGrade.gradeDescription, "GREAT_JOB");
-                    } else {
-                        strcpy(studentGrade.gradeDescription, "WRONG_DIRECTORY");
-                    }
-                    updateGrade(&studentGrade, depth);
-                    studentGrade.grade = 100;
-                    break;
-                case 2:
-                    if  (depth == 0) {
-                        strcpy(studentGrade.gradeDescription, "SIMILLAR_OUTPUT");
-                    } else {
-                        strcpy(studentGrade.gradeDescription, "SIMILLAR_OUTPUT,WRONG_DIRECTORY");
-                    }
-                    updateGrade(&studentGrade, depth);
-                    studentGrade.grade = 70;
-                    break;
-                case 3:
-                    if  (depth == 0) {
-                        strcpy(studentGrade.gradeDescription, "BAD_OUTPUT");
-                    } else {
-                        strcpy(studentGrade.gradeDescription, "BAD_OUTPUT,WRONG_DIRECTORY");
-                    }
-                    studentGrade.grade = 0;
-                    break;
-                default: //shouldn't get here.
-                    exit(FAILURE);
+            if (state == 0) { // the program wasn't done after 5 sec - timeout.
+                strcpy(studentGrade.gradeDescription, "TIMEOUT");
+                studentGrade.grade = 0;
+
+            } else {// the program was done properly - calculate the grade.
+
+                /* compare the output files and return the grade of
+                 * the student according to the comparision. */
+                switch(compareFile(myOutputPath, outputLocation)){
+                    case 1:
+                        if  (depth == 0) {
+                            strcpy(studentGrade.gradeDescription, "GREAT_JOB");
+                        } else {
+                            strcpy(studentGrade.gradeDescription, "WRONG_DIRECTORY");
+                        }
+                        updateGrade(&studentGrade, depth);
+                        studentGrade.grade = 100;
+                        break;
+                    case 2:
+                        if  (depth == 0) {
+                            strcpy(studentGrade.gradeDescription, "SIMILLAR_OUTPUT");
+                        } else {
+                            strcpy(studentGrade.gradeDescription, "SIMILLAR_OUTPUT,WRONG_DIRECTORY");
+                        }
+                        updateGrade(&studentGrade, depth);
+                        studentGrade.grade = 70;
+                        break;
+                    case 3:
+                        if  (depth == 0) {
+                            strcpy(studentGrade.gradeDescription, "BAD_OUTPUT");
+                        } else {
+                            strcpy(studentGrade.gradeDescription, "BAD_OUTPUT,WRONG_DIRECTORY");
+                        }
+                        studentGrade.grade = 0;
+                        break;
+                    default: //shouldn't get here.
+                        exit(FAILURE);
+                }
             }
             // closing and removed the files.
             close(myOutputFD);
