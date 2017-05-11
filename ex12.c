@@ -42,15 +42,15 @@ int isCFile(char* name);
 
 char *appendPath(char name[256], char location[MAX_PATH_LENGTH]);
 
-StudentGrade searchForCFile(char *studentName, char *path, int location, char *outputLocation, int depth);
+StudentGrade searchForCFile(char *studentName, char *path, char *location, char *outputLocation, int depth);
 
-StudentGrade compileCFile(char *studentName, char *path, int location, char *outputLocation, int depth);
+StudentGrade compileCFile(char *studentName, char *path, char *location, char *outputLocation, int depth);
 
-StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation, char *fileName, int depth);
+StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocation, char *fileName, int depth);
 
 int compareFile(char *fileLocation1, char *fileLocation2);
 
-void updateGrade(StudentGrade *pStudentGrade, int depth);
+void updateGrade(int *grade, int depth);
 
 /********************************************************************************
 * function name : main                                                          *
@@ -89,12 +89,6 @@ int main(int argc, char* argv[]) {
         exit(FAILURE);
     }
 
-    // open the inputFile
-    int fdInput = open(inputLocation, O_RDONLY);
-    if (fdInput < 0) {
-        perror(OPEN_INPUT_FILE_ERROR);
-        exit(FAILURE);
-    }
 
     // open directory.
     DIR* pDir = opendir(dirLocation);
@@ -109,6 +103,7 @@ int main(int argc, char* argv[]) {
         perror(OPEN_RESULTS_FILE_ERROR);
         exit(FAILURE);
     }
+
     // all the prints of the program will be printed to the results file.
     int copySTDOUT = dup2(fdResults,1);
     if(copySTDOUT < 0) {
@@ -116,14 +111,16 @@ int main(int argc, char* argv[]) {
         exit(FAILURE);
     }
 
-
+    //char  s[MAX_PATH_LENGTH];
     struct dirent *pDirent;
     // running over the students dirs.
     while ( (pDirent = readdir(pDir) ) != NULL ) {
         char * subDirPath = appendPath(pDirent->d_name, dirLocation);
         if (isDir(pDirent->d_name, subDirPath)) { // case this is a directory of a student.
-            StudentGrade studentGrade = searchForCFile(pDirent->d_name, subDirPath,fdInput, outputLocation, 0);
+            StudentGrade studentGrade = searchForCFile(pDirent->d_name, subDirPath,inputLocation, outputLocation, 0);
             printf("%s,%d,%s\n", studentGrade.name, studentGrade.grade, studentGrade.gradeDescription);
+//            int len = sprintf(s, "%s,%d,%s\n", studentGrade.name, studentGrade.grade, studentGrade.gradeDescription);
+//            write(fdResults, s, (size_t) len);
         }
         free(subDirPath);
     }
@@ -135,7 +132,7 @@ int main(int argc, char* argv[]) {
     }
 
     // close the dir and input file.
-    close(fdInput);
+    close(fdResults);
     closedir( pDir );
     return 0;
 }
@@ -147,7 +144,7 @@ int main(int argc, char* argv[]) {
 * output : the grade of the student.                                        *
 * explanation : search the c file by recursion.                             *
 ****************************************************************************/
-StudentGrade searchForCFile(char *studentName, char *dirLocation, int fdInput, char *outputLocation, int depth) {
+StudentGrade searchForCFile(char *studentName, char *dirLocation, char *inputLocation, char *outputLocation, int depth) {
     struct dirent *pDirent;
     char * singleDirPath = NULL;
     StudentGrade studentGrade = {studentName, "NO_C_FILE", 0};
@@ -170,7 +167,7 @@ StudentGrade searchForCFile(char *studentName, char *dirLocation, int fdInput, c
                 continue;
             }
         } else if (isCFile(itemPath)){
-            studentGrade = compileCFile(studentName, itemPath, fdInput, outputLocation, depth);
+            studentGrade = compileCFile(studentName, itemPath, inputLocation, outputLocation, depth);
             free(itemPath);
             closedir(pDir);
             return studentGrade;
@@ -187,7 +184,7 @@ StudentGrade searchForCFile(char *studentName, char *dirLocation, int fdInput, c
 
     // case there is a single dir an no c file - keep looking for the C file;
     if (dirCounter == 1) {
-        studentGrade = searchForCFile(studentName, singleDirPath, fdInput, outputLocation, ++depth);
+        studentGrade = searchForCFile(studentName, singleDirPath, inputLocation, outputLocation, ++depth);
         free(singleDirPath);
         closedir( pDir );
         return studentGrade;
@@ -205,7 +202,7 @@ StudentGrade searchForCFile(char *studentName, char *dirLocation, int fdInput, c
 * output : the grade of the student.                                        *
 * explanation : try to compile the c file, return the grade of the student  *
 ****************************************************************************/
-StudentGrade compileCFile(char *studentName, char *path, int fdInput, char *outputLocation, int depth) {
+StudentGrade compileCFile(char *studentName, char *path, char *inputLocation, char *outputLocation, int depth) {
     int status;
     pid_t pid;
 
@@ -238,7 +235,7 @@ StudentGrade compileCFile(char *studentName, char *path, int fdInput, char *outp
         }
 
         // the file compiled properly - run the program and return the grade.
-        return runCFile(studentName, fdInput, outputLocation, compiledFileName, depth);
+        return runCFile(studentName, inputLocation, outputLocation, compiledFileName, depth);
     }
     //shouldn't get here.
     exit(FAILURE);
@@ -253,12 +250,12 @@ StudentGrade compileCFile(char *studentName, char *path, int fdInput, char *outp
 *               the output file, return the grade of the student according  *
 *               to the comparision.                                         *
 ****************************************************************************/
-StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
+StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocation,
                       char *fileName, int depth) {
     int status;
     pid_t pid;
-    int copySTDOUT = 1;
-    int copySTDIN = 0;
+    int copySTDOUT;
+    int copySTDIN;
     char myOutputPath[MAX_PATH_LENGTH];
     //creating output file name for the c program.
     strcpy(myOutputPath, studentName);
@@ -274,12 +271,17 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
         exit(FAILURE);
     }
 
-
+        // open the inputFile
+    int fdInput = open(inputLocation, O_RDONLY);
+    if (fdInput < 0) {
+        perror(OPEN_INPUT_FILE_ERROR);
+        exit(FAILURE);
+    }
 
     if (pid == 0) {/* second  child */
         copySTDOUT = dup2(fdOutput,1);
         copySTDIN = dup2(fdInput, 0);
-        if( copySTDIN < 0 || copySTDOUT < 0) {
+        if(copySTDIN < 0 || copySTDOUT < 0) {
             perror(DUP2_ERROR);
             exit(FAILURE);
         }
@@ -320,7 +322,7 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
                         } else {
                             strcpy(studentGrade.gradeDescription, "WRONG_DIRECTORY,GREAT_JOB");
                         }
-                        updateGrade(&studentGrade, depth);
+                        updateGrade(&(studentGrade.grade), depth);
                         studentGrade.grade = 100;
                         break;
                     case 2:
@@ -329,7 +331,7 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
                         } else {
                             strcpy(studentGrade.gradeDescription, "SIMILLAR_OUTPUT,WRONG_DIRECTORY");
                         }
-                        updateGrade(&studentGrade, depth);
+                        updateGrade(&(studentGrade.grade), depth);
                         studentGrade.grade = 70;
                         break;
                     case 3:
@@ -345,14 +347,9 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
                 }
             }
 
-            // change back the stdin/out.
-            if( dup2(copySTDIN, 0) < 0 || dup2(copySTDOUT, 1) < 0) {
-                perror(DUP2_ERROR);
-                exit(FAILURE);
-            }
-
             // closing and removed the files.
             close(fdOutput);
+            close(fdInput);
             unlink(fileName);
             unlink(myOutputPath);
             return studentGrade;
@@ -366,15 +363,15 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
 * output : the updated grade.                                            *
 * explanation : updated the grate according to the depth of the c file . *
 *************************************************************************/
-void updateGrade(StudentGrade *pStudentGrade, int depth) {
+void updateGrade(int *grade, int depth) {
     if (depth <= 0)
         return;
 
-    int grade = pStudentGrade->grade - depth * 10;
+    int newGrade = *grade - depth * 10;
     if (grade <= 0) {
-        pStudentGrade->grade = 0;
+        *grade = 0;
     } else {
-        pStudentGrade->grade = grade;
+        *grade = newGrade;
     }
 }
 
