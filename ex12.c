@@ -1,7 +1,9 @@
-//
-// Created by noam on 07/05/17.
-//
-
+/********************************
+* Student name: Noam Simon      *
+* Student ID: 208388850         *
+* Course Exercise Group: 04     *
+* Exercise name: Exercise 1.1   *
+********************************/
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -25,6 +27,7 @@
 
 #define FAILURE -1
 
+// struct of student's grade.
 typedef struct StudentGrade {
     char*  name;
     char  gradeDescription[MAX_PATH_LENGTH];
@@ -48,6 +51,13 @@ int compareFile(char *fileLocation1, char *fileLocation2);
 
 void updateGrade(StudentGrade *pStudentGrade, int depth);
 
+/********************************************************************************
+* function name : main                                                          *
+* input : path to config file                                                   *
+* output : 0 for success, -1 for failure.                                       *
+* explanation : try to compile and run the c file of the students in the dir.   *
+*               print the grades to results.cvs file.                           *
+*********************************************************************************/
 int main(int argc, char* argv[]) {
     int fdConfig;
     int readBytes;
@@ -58,7 +68,7 @@ int main(int argc, char* argv[]) {
     fdConfig = open(argv[1],O_RDONLY);
     if (fdConfig < 0) {
         perror(OPEN_CONFIG_FILE_ERROR);
-        exit(-1);
+        exit(FAILURE);
     }
 
     dup2(fdConfig, 0);
@@ -73,14 +83,16 @@ int main(int argc, char* argv[]) {
     DIR* pDir = opendir(dirLocation);
     if (pDir == NULL) {
         perror(OPEN_DIR_ERROR);
-        exit(-1);
+        exit(FAILURE);
     }
 
+    // create the result file.
     int fdResults = open("results.cvs", O_APPEND | O_CREAT | O_RDWR | O_TRUNC, 0666);
     if (fdResults < 0) {
         perror(OPEN_RESULTS_FILE_ERROR);
         exit(FAILURE);
     }
+    // all the prints of the program will be printed to the results file.
     if(dup2(fdResults,1) < 0) {
         perror(DUP2_ERROR);
         exit(FAILURE);
@@ -88,7 +100,7 @@ int main(int argc, char* argv[]) {
 
 
     struct dirent *pDirent;
-
+    // running over the students dirs.
     while ( (pDirent = readdir(pDir) ) != NULL ) {
         char * subDirPath = appendPath(pDirent->d_name, dirLocation);
         if (isDir(pDirent->d_name, subDirPath)) { // case this is a directory of a student.
@@ -97,8 +109,19 @@ int main(int argc, char* argv[]) {
         }
         free(subDirPath);
     }
+
+    // close the dir
+    closedir( pDir );
+    return 0;
 }
 
+/****************************************************************************
+* function name : searchForCFile                                            *
+* input : student name, path of sub dir of the student, input file.         *
+*         output file , depth of the c file.                                *
+* output : the grade of the student.                                        *
+* explanation : search the c file by recursion.                             *
+****************************************************************************/
 StudentGrade searchForCFile(char *studentName, char *dirLocation, char *inputLocation, char *outputLocation, int depth) {
     struct dirent *pDirent;
     char * singleDirPath = NULL;
@@ -112,7 +135,8 @@ StudentGrade searchForCFile(char *studentName, char *dirLocation, char *inputLoc
         exit(-1);
     }
 
-    while ( (pDirent = readdir(pDir) ) != NULL ) {
+    // running over the di and search a c file.
+    while ((pDirent = readdir(pDir)) != NULL ) {
         char * itemPath = appendPath(pDirent->d_name, dirLocation);
         if (isDir(pDirent->d_name, itemPath)) { // case this is a directory of a student.
             dirCounter++;
@@ -123,6 +147,7 @@ StudentGrade searchForCFile(char *studentName, char *dirLocation, char *inputLoc
         } else if (isCFile(itemPath)){
             studentGrade = compileCFile(studentName, itemPath, inputLocation, outputLocation, depth);
             free(itemPath);
+            closedir(pDir);
             return studentGrade;
         }
         free(itemPath);
@@ -131,6 +156,7 @@ StudentGrade searchForCFile(char *studentName, char *dirLocation, char *inputLoc
     // case there are MULTIPLE_DIRECTORIES and there isn't a C file.
     if (dirCounter > 1) {
         strcpy(studentGrade.gradeDescription, "MULTIPLE_DIRECTORIES");
+        closedir( pDir );
         return studentGrade;
     }
 
@@ -138,53 +164,80 @@ StudentGrade searchForCFile(char *studentName, char *dirLocation, char *inputLoc
     if (dirCounter == 1) {
         studentGrade = searchForCFile(studentName, singleDirPath, inputLocation, outputLocation, ++depth);
         free(singleDirPath);
+        closedir( pDir );
         return studentGrade;
     }
 
     // case there isn't a C file - return "NO_C_FILE"
+    closedir( pDir );
     return studentGrade;
 }
 
+/****************************************************************************
+* function name : compileCFile                                              *
+* input : student name, path of the c file, input file,                     *
+*         output file , depth of the c file.                                *
+* output : the grade of the student.                                        *
+* explanation : try to compile the c file, return the grade of the student  *
+****************************************************************************/
 StudentGrade compileCFile(char *studentName, char *path, char *inputLocation, char *outputLocation, int depth) {
     int status;
     pid_t pid;
 
+    // create the name of the compiled file - "[studentName].out" .
     char compiledFileName[MAX_PATH_LENGTH];
     strcpy(compiledFileName, studentName);
     strcat(compiledFileName, ".out");
 
     if ((pid = fork()) < 0) {
         perror(FORK_ERROR);
+        exit(FAILURE);
 
     } else if (pid == 0) { /* first child */
+        // running gcc for compile the c file/
         char *args[] = {"gcc", "-o", compiledFileName, path, NULL};
         execvp("gcc", args);
-        exit(FAILURE);
-    }
 
-    if (waitpid(pid, &status, 0) != pid)  /* wait for first child */
+        //shouldn't get here.
+        perror(EXEC_ERROR);
+        exit(FAILURE);
+
+    } else if (waitpid(pid, &status, 0) != pid) {  /* wait for first child */
         perror(WAITPID_ERROR);
-    if (WIFEXITED(status) ) {
+        exit(FAILURE);
+    } else if (WIFEXITED(status)) {
         if (WEXITSTATUS(status) == 1) {
             // COMPILATION_ERROR
             StudentGrade studentGrade = {studentName, "COMPILATION_ERROR", 0};
             return studentGrade;
         }
 
+        // the file compiled properly - run the program and return the grade.
         return runCFile(studentName, inputLocation, outputLocation, compiledFileName, depth);
     }
-
+    //shouldn't get here.
+    exit(FAILURE);
 }
 
-StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocation, char *fileName, int depth) {
+/****************************************************************************
+* function name : runCFile                                                  *
+* input : student name, input file, output file for comparision,            *
+*         name of the compiled file, and his depth.                         *
+* output : the grade of the student.                                        *
+* explanation : run the c file, and compare the outputs of this program to  *
+*               the output file, return the grade of the student according  *
+*               to the comparision.                                         *
+****************************************************************************/
+StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocation,
+                      char *fileName, int depth) {
     int status;
     pid_t pid;
 
-    char outputName[MAX_PATH_LENGTH];
-    //creating output file name
-    strcpy(outputName, studentName);
-    strcat(outputName, ".txt");
-    int myOutputFD = open(outputName, O_APPEND | O_CREAT | O_RDWR | O_TRUNC, 0666);
+    char myOutputPath[MAX_PATH_LENGTH];
+    //creating output file name for the c program.
+    strcpy(myOutputPath, studentName);
+    strcat(myOutputPath, ".txt");
+    int myOutputFD = open(myOutputPath, O_APPEND | O_CREAT | O_RDWR | O_TRUNC, 0666);
     if (myOutputFD < 0) {
         perror(OPEN_OUTPUT_FILE_ERROR);
         exit(FAILURE);
@@ -200,28 +253,35 @@ StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocati
             exit(FAILURE);
         }
 
+        // run the compiled file.
         char execLine[MAX_PATH_LENGTH];
         strcpy(execLine, "./");
         strcat(execLine, fileName);
         char *args[] = {fileName, inputLocation, NULL};
         execvp(execLine, args);
+
+        //shouldn't get here.
         perror(EXEC_ERROR);
         exit(FAILURE);
     } else {
 
+        // sleep 5 sec to check time out.
         sleep(5);
         pid_t state = waitpid(pid, &status, WNOHANG);  /* wait for first child */
 
         if (state < 0) {
             perror(WAITPID_ERROR);
             exit(FAILURE);
-        } else if (state == 0) {
+        } else if (state == 0) { // the program wasn't done after 5 sec - timeout.
             StudentGrade studentGrade = {studentName, "TIMEOUT", 0};
             return studentGrade;
         } else {
+            // the program was done properly - calculate the grade.
             StudentGrade studentGrade;
             studentGrade.name = studentName;
-            switch(compareFile(outputName, outputLocation)){
+            /* compare the output files and return the grade of
+             * the student according to the comparision. */
+            switch(compareFile(myOutputPath, outputLocation)){
                 case 1:
                     if  (depth == 0) {
                         strcpy(studentGrade.gradeDescription, "GREAT_JOB");
@@ -251,13 +311,21 @@ StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocati
                 default: //shouldn't get here.
                     exit(FAILURE);
             }
+            // closing and removed the files.
+            close(myOutputFD);
             unlink(fileName);
-            unlink(outputName);
+            unlink(myOutputPath);
             return studentGrade;
         }
     }
 }
 
+/*************************************************************************
+* function name : updateGrade                                            *
+* input : pointer to a StudentGrade, a depth of the c file.              *
+* output : the updated grade.                                            *
+* explanation : updated the grate according to the depth of the c file . *
+*************************************************************************/
 void updateGrade(StudentGrade *pStudentGrade, int depth) {
     if (depth <= 0)
         return;
@@ -270,6 +338,13 @@ void updateGrade(StudentGrade *pStudentGrade, int depth) {
     }
 }
 
+/*********************************************************************
+* function name : compareFile                                        *
+* input : 2 files Path.                                              *
+* output : return the result of the comparision between the files.   *
+* explanation : run thr comp program, that compare between the files *
+*               and return the result.                               *
+**********************************************************************/
 int compareFile(char *fileLocation1, char *fileLocation2) {
     int status;
     pid_t pid;
@@ -289,14 +364,19 @@ int compareFile(char *fileLocation1, char *fileLocation2) {
             exit(FAILURE);
         }
         if (WIFEXITED(status) ) {
-            int i = WEXITSTATUS(status);
-            return i;
+            // return the result.
+            return WEXITSTATUS(status);
         }
         return -1;
     }
 }
 
-
+/*****************************************************************
+* function name : isCFile                                        *
+* input : file name.                                             *
+* output : 1 if true 0 if false.                                 *
+* explanation : check if a file name is a file name of a c file. *
+*****************************************************************/
 int isCFile(char* name) {
     struct stat statP;
     stat(name, &statP);
@@ -306,6 +386,12 @@ int isCFile(char* name) {
     return 0;
 }
 
+/**********************************************************************
+* function name : appendPath                                          *
+* input : name of a sub dir or file in a dir, path to the father dir. *
+* output : the new Path of the sub dir or the file.                   *
+* explanation : append the name to the end of the path.               *
+**********************************************************************/
 char * appendPath(char name[256], char location[MAX_PATH_LENGTH]) {
     char * newDirPath = (char*) malloc(strlen(location)+strlen(name)+2);
     newDirPath[0] = '\0';   // ensures the memory is an empty string
@@ -315,6 +401,13 @@ char * appendPath(char name[256], char location[MAX_PATH_LENGTH]) {
     return  newDirPath;
 }
 
+/*********************************************************************
+* function name : isDir                                              *
+* input : file name, and his path.                                   *
+* output : 1 if true 0 if false.                                     *
+* explanation : check if a file name is a file name of a directory   *
+*               (and not '.' or '..').                               *
+*********************************************************************/
 int isDir(char* name, char* path) {
     struct stat statP;
     stat(path, &statP);
