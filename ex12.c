@@ -71,7 +71,9 @@ int main(int argc, char* argv[]) {
         exit(FAILURE);
     }
 
-    if (dup2(fdConfig, 0) < 0){
+    // change stdin to the config file.
+    int copySTDIN = dup2(fdConfig, 0);
+    if (copySTDIN < 0){
         perror(DUP2_ERROR);
         exit(FAILURE);
     }
@@ -81,6 +83,11 @@ int main(int argc, char* argv[]) {
     scanf("%s" ,outputLocation);
     // close config file.
     close(fdConfig);
+    // change back to the stdin.
+    if (dup2(copySTDIN, 0) < 0){
+        perror(DUP2_ERROR);
+        exit(FAILURE);
+    }
 
     // open the inputFile
     int fdInput = open(inputLocation, O_RDONLY);
@@ -103,7 +110,8 @@ int main(int argc, char* argv[]) {
         exit(FAILURE);
     }
     // all the prints of the program will be printed to the results file.
-    if(dup2(fdResults,1) < 0) {
+    int copySTDOUT = dup2(fdResults,1);
+    if(copySTDOUT < 0) {
         perror(DUP2_ERROR);
         exit(FAILURE);
     }
@@ -118,6 +126,12 @@ int main(int argc, char* argv[]) {
             printf("%s,%d,%s\n", studentGrade.name, studentGrade.grade, studentGrade.gradeDescription);
         }
         free(subDirPath);
+    }
+
+    // change back - stdout.
+    if(dup2(copySTDOUT,1) < 0) {
+        perror(DUP2_ERROR);
+        exit(FAILURE);
     }
 
     // close the dir and input file.
@@ -258,18 +272,21 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
         perror(FORK_ERROR);
         exit(FAILURE);
     }
-    if (pid == 0) {/* second  child */
-        if(dup2(fdOutput,1) < 0 || dup2(fdInput, 0)) {
-            perror(DUP2_ERROR);
-            exit(FAILURE);
-        }
 
+    int copySTDOUT = dup2(fdOutput,1);
+    int copySTDIN = dup2(fdInput, 0);
+    if( copySTDIN < 0 || copySTDOUT < 0) {
+        perror(DUP2_ERROR);
+        exit(FAILURE);
+    }
+
+    if (pid == 0) {/* second  child */
         // run the compiled file.
         char execLine[MAX_PATH_LENGTH];
         strcpy(execLine, "./");
         strcat(execLine, fileName);
         //char *args[] = {fileName, NULL};
-        execlp(execLine, fileName);
+        execlp(execLine, fileName, NULL);
 
         //shouldn't get here.
         perror(EXEC_ERROR);
@@ -325,6 +342,13 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
                         exit(FAILURE);
                 }
             }
+
+            // change back the stdin/out.
+            if( dup2(copySTDIN, 0) < 0 || dup2(copySTDOUT, 1) < 0) {
+                perror(DUP2_ERROR);
+                exit(FAILURE);
+            }
+
             // closing and removed the files.
             close(fdOutput);
             unlink(fileName);
