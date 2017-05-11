@@ -317,22 +317,22 @@ StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocati
                  * the student according to the comparision. */
                 switch(compareFile(myOutputPath, outputLocation)){
                     case 1:
+                        studentGrade.grade = 100;
                         if  (depth == 0) {
                             strcpy(studentGrade.gradeDescription, "GREAT_JOB");
                         } else {
                             strcpy(studentGrade.gradeDescription, "WRONG_DIRECTORY,GREAT_JOB");
+                            updateGrade(&(studentGrade.grade), depth);
                         }
-                        updateGrade(&(studentGrade.grade), depth);
-                        studentGrade.grade = 100;
                         break;
                     case 2:
+                        studentGrade.grade = 70;
                         if  (depth == 0) {
                             strcpy(studentGrade.gradeDescription, "SIMILLAR_OUTPUT");
                         } else {
                             strcpy(studentGrade.gradeDescription, "SIMILLAR_OUTPUT,WRONG_DIRECTORY");
+                            updateGrade(&(studentGrade.grade), depth);
                         }
-                        updateGrade(&(studentGrade.grade), depth);
-                        studentGrade.grade = 70;
                         break;
                     case 3:
                         if  (depth == 0) {
