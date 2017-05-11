@@ -257,7 +257,8 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
                       char *fileName, int depth) {
     int status;
     pid_t pid;
-
+    int copySTDOUT = 1;
+    int copySTDIN = 0;
     char myOutputPath[MAX_PATH_LENGTH];
     //creating output file name for the c program.
     strcpy(myOutputPath, studentName);
@@ -273,14 +274,15 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
         exit(FAILURE);
     }
 
-    int copySTDOUT = dup2(fdOutput,1);
-    int copySTDIN = dup2(fdInput, 0);
-    if( copySTDIN < 0 || copySTDOUT < 0) {
-        perror(DUP2_ERROR);
-        exit(FAILURE);
-    }
+
 
     if (pid == 0) {/* second  child */
+        copySTDOUT = dup2(fdOutput,1);
+        copySTDIN = dup2(fdInput, 0);
+        if( copySTDIN < 0 || copySTDOUT < 0) {
+            perror(DUP2_ERROR);
+            exit(FAILURE);
+        }
         // run the compiled file.
         char execLine[MAX_PATH_LENGTH];
         strcpy(execLine, "./");
@@ -316,7 +318,7 @@ StudentGrade runCFile(char *studentName, int fdInput, char *outputLocation,
                         if  (depth == 0) {
                             strcpy(studentGrade.gradeDescription, "GREAT_JOB");
                         } else {
-                            strcpy(studentGrade.gradeDescription, "WRONG_DIRECTORY");
+                            strcpy(studentGrade.gradeDescription, "WRONG_DIRECTORY,GREAT_JOB");
                         }
                         updateGrade(&studentGrade, depth);
                         studentGrade.grade = 100;
