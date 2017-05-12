@@ -21,8 +21,9 @@
 #define OPEN_INPUT_FILE_ERROR "open input file error"
 #define OPEN_RESULTS_FILE_ERROR "open results file error"
 #define OPEN_DIR_ERROR "open dir error"
-#define FORK_ERROR "fork error"
 #define WAITPID_ERROR "waitpid error"
+#define UNLINK_ERROR "unlink error"
+#define FORK_ERROR "fork error"
 #define DUP2_ERROR "dup2 error"
 #define EXEC_ERROR "EXEC error"
 
@@ -350,8 +351,10 @@ StudentGrade runCFile(char *studentName, char *inputLocation, char *outputLocati
             // closing and removed the files.
             close(fdOutput);
             close(fdInput);
-            unlink(fileName);
-            unlink(myOutputPath);
+            if ( unlink(fileName) == -1 || unlink(myOutputPath) == -1){
+                perror(UNLINK_ERROR);
+                exit(FAILURE);
+            }
             return studentGrade;
         }
     }
